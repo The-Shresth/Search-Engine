@@ -1,4 +1,5 @@
 import os
+import nltk
 
 # pointing to folder
 doc_dir = "./documents"
