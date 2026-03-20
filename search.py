@@ -1,72 +1,64 @@
 import os
-import nltk
-import string
-from nltk.corpus import stopwords
-from nltk.stem import PorterStemmer
+import inverted_index
 
-# Ensure NLTK data is available
-# nltk.download('stopwords') 
-
-# Initializing tools
-stemmer = PorterStemmer()
-try:
-    stop_words = set(stopwords.words('english'))
-except LookupError:
-    nltk.download('stopwords')
-    stop_words = set(stopwords.words('english'))
-
-# Cleaning text
-def clean_text(text):
-    text = text.lower()
-    text = text.translate(str.maketrans('', '', string.punctuation))
-    words = text.split()
-    cleaned = [stemmer.stem(w) for w in words if w not in stop_words]
-    return cleaned
-
-# Pointing to folder
 doc_dir = "./documents"
-# Ensure the directory exists so the code doesn't crash
+
 if not os.path.exists(doc_dir):
-    os.makedirs(doc_dir)
-    print(f"Created {doc_dir} folder. Please add .txt files to it!")
-
-inverted_index = {}
-
-# Indexing files
-for filename in os.listdir(doc_dir):
-    if filename.endswith(".txt"):
-        with open(os.path.join(doc_dir, filename), 'r', encoding='utf-8') as f:
-            tokens = clean_text(f.read())
-            for token in tokens:
-                if token not in inverted_index:
-                    inverted_index[token] = set()
-                inverted_index[token].add(filename)
-
-# Search Interface
-query = input("Search for the terms: ")
-mode = input("Search in (AND/OR): ").strip().upper()
-
-query_tokens = clean_text(query)
-results = None
-
-for token in query_tokens:
-
-    current_word_files = inverted_index.get(token, set())
-
-    if results is None:
-
-        results = current_word_files
-    else:
-
-        if mode == "AND":
-            results = results & current_word_files
-        else:
-            results = results | current_word_files
-
-
-if results:
-    print(f"\nFound {len(results)} match(es) using {mode} logic:")
-    for doc in results:
-        print(f"- {doc}")
+    print(f"Error: The directory {doc_dir} was not found")
 else:
-    print("\nNo matching documents found.")
+    for filename in os.listdir(doc_dir):
+     if filename.endswith(".txt"):
+          file_path = os.path.join(doc_dir, filename)
+          with open(file_path,'r', encoding = 'utf-8') as f:
+               current_offset = 0
+               for line_num, line_text in enumerate(f,1):
+                    words = inverted_index.manual_clean(line_text)
+
+                    for word in words:
+                        inverted_index.add_to_index(word,filename,line_num, current_offset)
+                    current_offset += len(line_text)
+
+import os
+import inverted_index  # Your logic file
+
+def get_snippet(filename, offset, length=50):
+    """Jumps to a specific spot in a file and grabs surrounding text."""
+    file_path = os.path.join("./documents", filename)
+    with open(file_path, 'r', encoding='utf-8') as f:
+        # Move the 'cursor' to the stored offset
+        f.seek(offset)
+        # Read a chunk of text around that spot
+        snippet = f.read(length)
+        return snippet.replace('\n', ' ') # Clean up newlines for display
+
+# 1. Get the word from user
+user_query = input("\nEnter word to search: ").strip().lower()
+
+# 2. Clean the query (using your manual_clean function)
+cleaned_query = inverted_index.manual_clean(user_query)
+
+if not cleaned_query:
+    print("Please enter a valid word.")
+else:
+    word = cleaned_query[0] # Search for the first word
+    
+    # 3. Look up in our 3-layer Nested Map
+    if word in inverted_index.inverted_index:
+        results = inverted_index.inverted_index[word]
+        
+        # 4. RANKING: Sort files by the "count" key (highest first)
+        sorted_files = sorted(results.items(), key=lambda x: x[1]['count'], reverse=True)
+
+        print(f"\n--- Found '{word}' in {len(sorted_files)} files ---")
+
+        for filename, metadata in sorted_files:
+            print(f"\n📄 {filename} (Occurrences: {metadata['count']})")
+            
+            # 5. SNIPPET: Use the first offset to show where it starts
+            first_offset = metadata['offsets'][0]
+            context = get_snippet(filename, first_offset)
+            print(f"   Snippet: ...{context}...")
+            print(f"   Found on line(s): {metadata['lines']}")
+
+    else:
+        print(f"No results found for '{word}'.")
