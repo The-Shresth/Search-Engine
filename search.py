@@ -18,43 +18,34 @@ else:
                         inverted_index.add_to_index(word,filename,line_num, current_offset)
                     current_offset += len(line_text)
 
-import os
-import inverted_index  # Your logic file
 
 def get_snippet(filename, offset, length=50):
-    """Jumps to a specific spot in a file and grabs surrounding text."""
     file_path = os.path.join("./documents", filename)
     with open(file_path, 'r', encoding='utf-8') as f:
-        # Move the 'cursor' to the stored offset
+        # Moving the 'cursor' to the stored offset
         f.seek(offset)
-        # Read a chunk of text around that spot
         snippet = f.read(length)
-        return snippet.replace('\n', ' ') # Clean up newlines for display
+        return snippet.replace('\n', ' ')
 
-# 1. Get the word from user
 user_query = input("\nEnter word to search: ").strip().lower()
 
-# 2. Clean the query (using your manual_clean function)
 cleaned_query = inverted_index.manual_clean(user_query)
 
 if not cleaned_query:
     print("Please enter a valid word.")
 else:
-    word = cleaned_query[0] # Search for the first word
+    word = cleaned_query[0]
     
-    # 3. Look up in our 3-layer Nested Map
     if word in inverted_index.inverted_index:
         results = inverted_index.inverted_index[word]
         
-        # 4. RANKING: Sort files by the "count" key (highest first)
         sorted_files = sorted(results.items(), key=lambda x: x[1]['count'], reverse=True)
 
         print(f"\n--- Found '{word}' in {len(sorted_files)} files ---")
 
         for filename, metadata in sorted_files:
-            print(f"\n📄 {filename} (Occurrences: {metadata['count']})")
+            print(f"\n {filename} (Occurrences: {metadata['count']})")
             
-            # 5. SNIPPET: Use the first offset to show where it starts
             first_offset = metadata['offsets'][0]
             context = get_snippet(filename, first_offset)
             print(f"   Snippet: ...{context}...")
